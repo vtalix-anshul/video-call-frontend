@@ -7,7 +7,7 @@ const initialState = {
 
 };
 
-const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InZ0YWxpeF80Iiwicm9sZSI6InBhdGllbnQiLCJpYXQiOjE3NDA5Nzc4ODksImV4cCI6MTc0MTIzNzA4OX0NPu1uYKhJlKoWpsb71TrPrODfhLXjm9JPWVYGnBVfYY`;
+const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InZ0YWxpeF80Iiwicm9sZSI6InBhdGllbnQiLCJpYXQiOjE3NDEwMDI2OTUsImV4cCI6MTc0MTI2MTg5NX0.oVIpon0yGtcVSQiECNIc9dP__icNciS0u4g59eJcWZk`;
 
 const socketSlice = createSlice({
   name: "socket",
