@@ -129,13 +129,14 @@
 
 
 import { useEffect, useRef, useState } from "react";
-import { connectSocket, joinRoom, listenForJoinSuccess, listenForErrors } from "../services/socket";
+import { connectSocket, joinRoom, listenForJoinSuccess, listenForErrors, listenForOffer, sendAnswer } from "../services/socket";
 import { useNavigate } from "react-router-dom";
 
 const Lobby = () => {
     const appointment_id = "vtalix_appointment_105";
-    const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InZ0YWxpeF80Iiwicm9sZSI6InBhdGllbnQiLCJpYXQiOjE3NDEwMDI2OTUsImV4cCI6MTc0MTI2MTg5NX0.oVIpon0yGtcVSQiECNIc9dP__icNciS0u4g59eJcWZk`;
-
+    // const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InZ0YWxpeF80Iiwicm9sZSI6InBhdGllbnQiLCJpYXQiOjE3NDEwMDI2OTUsImV4cCI6MTc0MTI2MTg5NX0.oVIpon0yGtcVSQiECNIc9dP__icNciS0u4g59eJcWZk`;
+    const token = localStorage.getItem("token");
+    console.log("token is ", token);
     const [mediaError, setMediaError] = useState(null);
     const [socketError, setSocketError] = useState(null);
     const localVideoRef = useRef();
@@ -144,15 +145,20 @@ const Lobby = () => {
     const [isCameraOn, setIsCameraOn] = useState(true);
     const isCameraref = useRef(true);
     const [isMicOn, setIsMicOn] = useState(true);
-    const peerConnection = useRef(null);
     const navigate = useNavigate();
+    const peerConnection = useRef(null);
 
     useEffect(() => {
         getDeviceMedia();
         
-        listenForJoinSuccess(() => {
+        listenForJoinSuccess((data) => {
             console.log("Joined Room");
+            console.log("data is ", data);
+            const final_offer = data.offer;
+            localStorage.setItem("offer", JSON.stringify(final_offer));
+            localStorage.setItem("remoteSocketId", data.remoteSocket);
             setSocketError(null);
+            navigate("/room/23457");
         });
 
         listenForErrors((errorMessage) => {
@@ -241,16 +247,10 @@ const Lobby = () => {
 
         const offer = await peerConnection.current.createOffer();
         await peerConnection.current.setLocalDescription(offer);
+        localStorage.setItem("own_offer", JSON.stringify(offer))
         return offer;
-        // sendOffer(appointment_id, offer);
-        // navigate("/room");
     };
 
-    const sendOffer = (appointmentId, offer) => {
-        console.log("Sending offer to server:", appointmentId, offer);
-        
-        // This function will later be updated to send the offer via WebSocket
-    };
 
     return (
         <div>

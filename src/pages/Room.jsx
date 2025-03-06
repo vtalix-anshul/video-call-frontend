@@ -1,71 +1,108 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { connectSocket } from "../redux/socketSlice";
-import { io } from "socket.io-client";
+import { useEffect, useRef } from "react";
+import { listenForAnswer, listenForOffer, sendAnswer } from "../services/socket";
 
-const Room = () => {
-  const { meetingId } = useParams(); // Get meeting ID from URL
-  const dispatch = useDispatch();
-  const [socket, setSocket] = useState(null);
-  const [isJoined, setIsJoined] = useState(false);
+const Room = ()=>{
+    const appointment_id = "vtalix_appointment_105"
+    // const peerConnection = useRef(null);
+    const token = localStorage.getItem("token");
+    const storedOffer = localStorage.getItem("offer");
+    const offer = storedOffer ? JSON.parse(storedOffer) : null;
+    const remoteSocketId = localStorage.getItem("remoteSocketId");
+    const peerConnection = useRef(new RTCPeerConnection());
+    const own_offer = JSON.parse(localStorage.getItem("own_offer"));
+    console.log("own_offer is ", own_offer);
+    peerConnection.current.setLocalDescription(own_offer);
+    // const local_offer = localStorage.getItem("offer");
+    // user 2 function to handle offer from user 1(server)
+    // useEffect(()=>{
+    //     console.log('working in room useEffect');
+    //     const listenForTheLocalOffer = async (offer) => {
+    //         const remoteSocketId = localStorage.getItem("remoteSocketId");
+    //         console.log('remote seocket id is ', remoteSocketId);
+    //         if(remoteSocketId !== "null"){
+    //             console.log("offer from the server is ", offer)
+    //             const answer = await createAnswer(offer);
+    //             console.log("answer from the create answer is ", answer);
+    //             sendAnswer(appointment_id, token, answer, remoteSocketId);
+    //         }
+    //     };
+    //     listenForTheLocalOffer(offer);
+    // }, [offer]);
+    useEffect(() => {
+        if (!offer) return; // Avoid running if no offer is stored
 
-  const user = JSON.parse(localStorage.getItem("user")) || { id: "vta", role: "patient" }; // Get user info
+        console.log("Received offer, creating answer...");
+        const handleOffer = async () => {
+            if (remoteSocketId && remoteSocketId !== "null") {
+                const answer = await createAnswer(offer);
+                console.log("Answer created:", answer);
+                sendAnswer(appointment_id, token, answer, remoteSocketId);
+            }
+        };
+        handleOffer();
+    }, [offer, remoteSocketId]);
+    // user 1 function to handle answer from user 2
+    // useEffect(()=>{
+    //     console.log("random eeffect");
+    //     listenForAnswer(async (data)=>{
+    //         try{
+                
+    //             console.log("data in recieve answer is ", data);
+    //             console.log("data. from ", data.from);
+    //             localStorage.setItem("remoteSocketId", data.from)
+    //             localStorage.setItem("answer", JSON.stringify(data.answer));
+    //             console.log("data. from ", data.answer);
+    //             console.log("peerconnection ", peerConnection.current);
+    //             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));// error: DOMException: Cannot set remote answer in state stable
+    //             console.log("done till here");
+    //         }catch(error){
+    //             console.log("error in listening answer ", error);
+    //         }
+    //     })
+    // }, []);
 
-  useEffect(() => {
-    const newSocket = io("http://localhost:3015", {
-      auth: {
-        token: localStorage.getItem("token"), // JWT for authentication 
-      },
-      query: { meetingId },
-    });
+    useEffect(() => {
+        console.log("Setting up answer listener...");
+        listenForAnswer(async (data) => {
+            try {
+                console.log("Received answer data:", data);
+                localStorage.setItem("remoteSocketId", data.from);
+                localStorage.setItem("answer", JSON.stringify(data.answer));
 
-    newSocket.on("connect", () => {
-      console.log("Connected to socket server with ID:", newSocket.id);
-    });
+                console.log("peer connection current is", peerConnection.current);
+                if (peerConnection.current.remoteDescription !== null || !peerConnection.current.remoteDescription) {
+                    console.log("data.answer is ", data.answer);
+                    console.log("peeer connectioj remote is ", peerConnection.current.remoteDescription);
+                    await peerConnection.current.setRemoteDescription(data.answer);
+                    console.log("Remote description set successfully.");
+                }
+            } catch (error) {
+                console.error("Error in listening for answer:", error);
+            }
+        });
+    }, []);
 
-    setSocket(newSocket);
+    // const createNewAnswer
 
-    return () => {
-      newSocket.disconnect();
+    const createAnswer = async (offer) => {
+        console.log("offer in creare answer is ", offer);
+        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.current.createAnswer();
+        await peerConnection.current.setLocalDescription(answer);
+        console.log("answer to be sent it ", answer);
+        peerConnection.current.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log("Sending ICE candidate:", event.candidate);
+                // Send ICE candidate via socket
+            }
+        };
+        return answer;
     };
-  }, [meetingId]);
 
-  const handleJoinRoom = () => {
-    if (!socket) return;
-    socket.emit("join_room", { meetingId, userId: user.id, role: user.role });
 
-    // Update the backend with user's socket ID
-    fetch(`http://localhost:3015/api/v1/signalling/update-socket`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ meetingId, userId: user.id, role: user.role, socketId: socket.id }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Socket ID updated in backend:", data);
-        setIsJoined(true);
-      })
-      .catch((err) => console.error("Error updating socket ID:", err));
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
-      <h1 className="text-2xl mb-4">Waiting Room</h1>
-      <p>Meeting ID: {meetingId}</p>
-      <p>User: {user.id} ({user.role})</p>
-      {!isJoined ? (
-        <button onClick={handleJoinRoom} className="mt-4 bg-blue-500 px-4 py-2 rounded">
-          Join Room
-        </button>
-      ) : (
-        <p className="mt-4 text-green-400">You have joined the room!</p>
-      )}
-    </div>
-  );
-};
+    return(<>
+        this is the room.    
+    </>);
+}
 
 export default Room;
